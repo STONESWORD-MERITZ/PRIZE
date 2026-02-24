@@ -1015,83 +1015,6 @@ elif mode == "⚙️ 시스템 관리자":
             st.success("✅ 서버에 영구 반영되었습니다! 이제 조회 화면에서 확인 가능합니다.")
 
 # ==========================================
-# 🏆 4. 사용자 모드 (일반 설계사 조회)
-# ==========================================
-else:
-    st.markdown('<div class="title-band">메리츠화재 시상 현황</div>', unsafe_allow_html=True)
-    st.markdown("<h3 class='main-title'>이름과 지점별 코드를 입력하세요.</h3>", unsafe_allow_html=True)
-    
-    user_name = st.text_input("본인 이름을 입력하세요", placeholder="예: 홍길동")
-    branch_code_input = st.text_input("지점별 코드", placeholder="예: 1지점은 1, 11지점은 11 입력")
-
-    codes_found = set()
-    needs_disambiguation = False
-
-    if user_name and branch_code_input:
-        for i, cfg in enumerate(st.session_state['config']):
-            if cfg.get('category') == 'cumulative': continue
-                
-            df = st.session_state['raw_data'].get(cfg['file'])
-            if df is not None:
-                col_name = cfg.get('col_name', '')
-                col_branch = cfg.get('col_branch', '')
-                
-                search_name = df[col_name].fillna('').astype(str).str.strip() if col_name and col_name in df.columns else pd.Series()
-                if search_name.empty: continue
-                
-                name_match_condition = (search_name == user_name.strip())
-                
-                if branch_code_input.strip() == "0000": 
-                    match = df[name_match_condition]
-                else:
-                    clean_code = branch_code_input.replace("지점", "").strip()
-                    if clean_code:
-                        search_branch = df[col_branch].fillna('').astype(str) if col_branch and col_branch in df.columns else pd.Series()
-                        if search_branch.empty: continue
-                        
-                        regex_pattern = rf"(?<!\d){clean_code}\s*지점"
-                        match = df[name_match_condition & search_branch.str.contains(regex_pattern, regex=True)]
-                    else:
-                        match = pd.DataFrame()
-                
-                if not match.empty:
-                    if cfg.get('col_code') and cfg['col_code'] in df.columns:
-                        clean_col_codes = get_clean_series(df, cfg['col_code'])
-                        for agent_code in clean_col_codes[match.index]:
-                            if agent_code: codes_found.add(agent_code)
-
-    codes_found = {c for c in codes_found if c}
-    
-    selected_code = None
-    if len(codes_found) > 1:
-        st.warning("⚠️ 동일한 이름과 지점을 가진 분이 존재합니다. 본인의 설계사코드(사번)를 선택해주세요.")
-        selected_code = st.selectbox("나의 설계사코드 선택", sorted(list(codes_found)))
-        needs_disambiguation = True
-
-    if st.button("내 실적 확인하기", type="primary"):
-        if not user_name or not branch_code_input:
-            st.warning("이름과 지점코드를 입력해주세요.")
-        elif not st.session_state['config']:
-            st.warning("현재 진행 중인 시책 데이터가 없습니다.")
-        elif not codes_found:
-            st.error("일치하는 정보가 없습니다. 이름과 지점코드를 다시 확인해주세요.")
-        else:
-            final_target_code = selected_code if needs_disambiguation else list(codes_found)[0]
-            
-            calc_results, total_prize = calculate_agent_performance(final_target_code)
-            
-            if calc_results:
-                # 🌟 [로그 저장] 일반 설계사 실적 조회 성공 시 기록 🌟
-                save_log(f"{user_name}({branch_code_input}지점)", final_target_code, "USER_SEARCH")
-                
-                render_ui_cards(user_name, calc_results, total_prize, show_share_text=False)
-                
-                user_leaflet_path = os.path.join(DATA_DIR, "leaflet.png")
-                if os.path.exists(user_leaflet_path):
-                    st.markdown("<div style='margin-top:20px;'></div>", unsafe_allow_html=True)
-                    st.image(user_leaflet_path, use_container_width=True)
-            else:
-                # ==========================================
 # 🏆 4. 사용자 모드 (일반 설계사 조회) - [수정됨]
 # ==========================================
 else:
@@ -1147,4 +1070,3 @@ else:
                     st.image(user_leaflet_path, use_container_width=True)
             else:
                 st.error("입력하신 코드의 실적 데이터가 없습니다. 사번을 다시 확인해주세요.")
-                st.error("해당 조건의 실적 데이터가 없습니다.")
