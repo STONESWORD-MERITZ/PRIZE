@@ -736,7 +736,6 @@ if mode == "👥 매니저 관리":
                         st.session_state.mgr_selected_name = f"[{agency}] {name}"
                         st.session_state.mgr_step = 'detail'
                         st.rerun()
-                        
         # --- (4) 상세 내역 및 카톡 공유 ---
         elif step == 'detail':
             if st.button("⬅️ 명단으로 돌아가기", use_container_width=False):
