@@ -664,23 +664,22 @@ if mode == "👥 매니저 관리":
                     st.session_state.mgr_agents = my_agents 
                     st.rerun()
                 
-        # --- (3) 선택한 폴더 내 설계사 명단 확인 (가나다 정렬 적용) ---
-        elif step == 'list':
-         # --- (3) 선택한 폴더 내 설계사 명단 확인 ---
+# --- (3) 선택한 폴더 내 설계사 명단 확인 (내림차순 정렬 및 전월실적 추가) ---
         elif step == 'list':
             if st.button("⬅️ 폴더로 돌아가기", use_container_width=False):
                 st.session_state.mgr_step = 'tiers'
                 st.rerun()
             
-            # ... (기존 설정 변수 로드 부분은 그대로 유지) ...
             cat = st.session_state.mgr_category
             target = st.session_state.mgr_target
             min_v = st.session_state.mgr_min_v
             max_v = st.session_state.mgr_max_v
             my_agents = st.session_state.mgr_agents
-
+            
             if target == 500000: st.markdown(f"<h3 class='main-title'>👥 50만 구간 근접 및 달성자 명단</h3>", unsafe_allow_html=True)
             else: st.markdown(f"<h3 class='main-title'>👥 {int(target//10000)}만 구간 근접자 명단</h3>", unsafe_allow_html=True)
+            
+            st.info("💡 이름을 클릭하면 상세 실적을 확인하고 카톡으로 전송할 수 있습니다.")
             
             near_agents = []
             for code in my_agents:
@@ -688,53 +687,56 @@ if mode == "👥 매니저 관리":
                 
                 agent_name = "이름없음"
                 agent_agency = ""
-                # [개선 2-1] 전월 실적 변수 추가
-                prev_val = 0 
+                prev_val = 0  # 전월 실적 변수 추가
                 
-                # ... (기존 이름/소속 찾는 로직 유지) ...
                 for cfg in st.session_state['config']:
-                     # (기존 데이터 조회 코드 생략 - 위와 동일)
-                     pass 
+                    if cfg.get('col_code') and cfg.get('col_name'):
+                        df = st.session_state['raw_data'].get(cfg['file'])
+                        if df is not None and cfg['col_code'] in df.columns:
+                            clean_col_codes = get_clean_series(df, cfg['col_code'])
+                            mask = clean_col_codes == code
+                            match_df = df[mask]
+                            
+                            if not match_df.empty:
+                                if cfg['col_name'] in match_df.columns:
+                                    agent_name = safe_str(match_df[cfg['col_name']].values[0])
+                                br = cfg.get('col_branch','')
+                                ag = cfg.get('col_agency','')
+                                if ag and ag in df.columns: agent_agency = safe_str(match_df[ag].values[0])
+                                elif br and br in df.columns: agent_agency = safe_str(match_df[br].values[0])
+                                break
 
-                # 전월 실적 찾기 및 값 매칭
                 current_val = 0
                 for res in calc_results:
                     if cat == "구간" and "구간" not in res['type']: continue
                     if cat == "브릿지" and "브릿지" not in res['type']: continue
                     
-                    # 당월 실적
                     val = res.get('val') if 'val' in res else res.get('val_curr', 0.0)
                     if val is None: val = 0.0
                     
-                    # 전월 실적 (브릿지 시책인 경우)
                     if 'val_prev' in res:
                         prev_val = res['val_prev']
-                    
+                        
                     if min_v <= val < max_v:
                         current_val = val
-                        # 리스트에 전월 실적(prev_val)도 함께 저장
                         near_agents.append((code, agent_name, agent_agency, current_val, prev_val))
                         break
             
             if not near_agents:
                 st.info(f"해당 구간에 소속 설계사가 없습니다.")
             else:
-                # [개선 2-2] 정렬 기준 변경: 실적(current_val) 기준 내림차순(큰 순서대로)
-                # x[3]은 당월실적, reverse=True는 내림차순
+                # 실적(current_val) 기준 내림차순 정렬
                 near_agents.sort(key=lambda x: x[3], reverse=True)
                 
                 for code, name, agency, val, p_val in near_agents:
-                    # [개선 2-3] 버튼 텍스트에 전월 실적 표시
                     prev_text = f" (전월: {p_val:,.0f})" if p_val > 0 else ""
                     display_text = f"👤 [{agency}] {name} ({val:,.0f}원){prev_text}"
-                    
-                    # 실적이 높을수록 버튼 색상을 강조하거나 아이콘을 다르게 줄 수도 있음
                     if st.button(display_text, use_container_width=True, key=f"btn_{code}"):
                         st.session_state.mgr_selected_code = code
                         st.session_state.mgr_selected_name = f"[{agency}] {name}"
                         st.session_state.mgr_step = 'detail'
                         st.rerun()
-
+                        
         # --- (4) 상세 내역 및 카톡 공유 ---
         elif step == 'detail':
             if st.button("⬅️ 명단으로 돌아가기", use_container_width=False):
